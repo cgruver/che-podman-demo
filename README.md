@@ -5,43 +5,23 @@ This project is intended to serve as a quick demo for using `podman` in [Eclipse
 There are three specific things being demo'd here:
 
 1. Enabling container development in Eclipse Che & building a custom image for a workspace.
-1. Creating a [Devfile](https://devfile.io) to use the custom image.
-1. Customizing the VS Code editor in the workspace.
+1. Creating a [Devfile](https://devfile.io) to use the custom image and define an Eclipse Che workspace.
+1. Customizing the VS Code editor in the workspace by defining some desired extensions and workspace settings.
 
 Let's get started.
 
-## Enabling Container Development in Eclipse Che
+### Enabling Container Development in Eclipse Che
 
 There are two things necessary to develop container images in Eclipse Che:
 
 1. Enable the Dev Workspaces Operator to use a security context that enables rootless container builds.
 1. Create a Workspace with an image that is enabled for container development.
 
-### Enable Eclipse Che for Container Development
+### Custom Image for Container Tools that allows rootless container development
 
-The first step is really easy, but needs cluster admin.  You need to flip a toggle on the CheCluster Custom Resource to enable container development.
+Let's look at a container image that our workspace can use to provide `podman` and some other tools for rootless container development.
 
-Execute the following with cluster-admin privileges:
-
-```bash
-oc patch CheCluster <NAME_OF_YOUR_CHE_CLUSTER_CR> -n <NAMESPACE_WHERE_THE_CHE_CLUSTER_IS_INSTALLED> --type merge --patch '{"spec":{"devEnvironments":{"disableContainerBuildCapabilities":false}}}'
-```
-
-For a default install of Eclipse Che the command will look like:
-
-```bash
-oc patch CheCluster eclipse-che -n eclipse-che --type merge --patch '{"spec":{"devEnvironments":{"disableContainerBuildCapabilities":false}}}'
-```
-
-For OpenShift Dev Spaces, the command is the same, but the namespace where the CheCluster CR lives is likely different, and the name of the CheCluster CR might be different.
-
-Your instance of Eclipse Che is now ready to allow container development.
-
-### Create a Custom Image for Container Tools
-
-Next, let's create a container image that our workspace can use to provide `podman` and some other tools for rootless container development.
-
-I've provided a Dockerfile for you as an example:
+I've provided a Dockerfile for you as an example: `basic-podman.Dockerfile`
 
 ```dockerfile
 FROM registry.access.redhat.com/ubi9/ubi-minimal
@@ -108,7 +88,108 @@ Let's break this down:
 
 I have a pre-built instance of this container image here: `quay.io/cgruver0/che/podman-basic:latest`
 
-However, let's use the OpenShift internal registry and create a local instance of it to speed up workspace provisioning.
+However, in the demo below, we'll use the OpenShift internal registry and create a local instance of it to speed up workspace provisioning.
+
+Next, we'll look at a Devfile that uses this image in a Che workspace.
+
+### Basic Devfile for Container Development
+
+This project includes a basic [Devfile](https://devfile.io) that you can use out of the box to create a workspace in Eclipse Che for building images with rootless podman.
+
+```yaml
+schemaVersion: 2.2.0
+attributes:
+  controller.devfile.io/storage-type: per-workspace
+metadata:
+  name: podman-dev
+components:
+- name: podman
+  container: 
+    image: quay.io/cgruver0/che/podman-basic:latest
+    memoryLimit: 6Gi
+    mountSources: true
+- volume:
+    size: 4Gi
+  name: projects
+```
+
+This is just about as simple as a [Devfile](https://devfile.io) can get.  
+
+1. It is specifying one attribute, `controller.devfile.io/storage-type: per-workspace`, which instructs the Dev Workspace Operator to create a PVC for this workspace rather than sharing one across multiple workspaces.
+
+1. The workspace has one component, in this case it's the container images that we talked about above which has the container dev tooling in it.
+
+   1. We're requesting 6GB of RAM.
+   1. We're instructing the workspace to expose the project source code in this component: `mountSources: true`
+
+1. The workspace is requesting one persistent volume.
+
+__Note:__ This Devfile is referencing the pre-built image in my Quay.io account.  You can leave it like that if you want.  But...  since we went to the trouble of building our own image, we'll use that one instead.
+
+### Customizing VS Code for your Workspace
+
+Take a look at the file: `workspace-dev.code-workspace`.  This is a JSON file that VS Code can ingest to open a VS Code workspace.
+
+__Note:__ There is a collision of terms here...  Not to confuse the Eclipse Che "workspace", as defined by `.devfile.yaml`, with the VS Code "workspace" which runs inside the Che "workspace" in the VS Code editor.
+
+Yeah...  There's only so many words out there.
+
+```json
+{
+  "folders": [{
+      "path": "."
+    }],
+  "extensions": {
+    "recommendations": [
+      "redhat.vscode-yaml",
+      "mhutchie.git-graph",
+      "eamodio.gitlens",
+      "streetsidesoftware.code-spell-checker",
+      "johnpapa.winteriscoming"
+    ]
+  },
+  "settings": {
+    "workbench.colorTheme": "Winter is Coming (Light)",
+    "workbench.preferredDarkColorTheme": "Winter is Coming (Dark Blue)",
+    "workbench.preferredLightColorTheme": "Winter is Coming (Light)"
+  }
+}
+```
+
+This file is standard VS Code configuration.  By including it in this project, it will automatically configure VS Code when your Eclipse Che workspace is provisioned.
+
+| | |
+| - | - |
+| `folders` | Contains a list of paths, relative to the location of this file, of folders to include in the VS Code workspace |
+| `extensions.recommendations` | Contains a list of VS Code extensions which will be installed when the VS Code workspace is opened |
+| `settings` | Contains additional VS Code settings for the workspace.  In this example, it is setting the color theme |
+| | |
+
+## Putting it all together - Let's Use the above files to create a workspace
+
+### Enable Eclipse Che for Container Development
+
+The first step is really easy, but needs cluster admin.  You need to flip a toggle on the CheCluster Custom Resource to enable container development.
+
+Execute the following with cluster-admin privileges:
+
+```bash
+oc patch CheCluster <NAME_OF_YOUR_CHE_CLUSTER_CR> -n <NAMESPACE_WHERE_THE_CHE_CLUSTER_IS_INSTALLED> --type merge --patch '{"spec":{"devEnvironments":{"disableContainerBuildCapabilities":false}}}'
+```
+
+For a default install of Eclipse Che the command will look like:
+
+```bash
+oc patch CheCluster eclipse-che -n eclipse-che --type merge --patch '{"spec":{"devEnvironments":{"disableContainerBuildCapabilities":false}}}'
+```
+
+For OpenShift Dev Spaces, the command is the same, but the namespace where the CheCluster CR lives is likely different, and the name of the CheCluster CR might be different.
+
+Your instance of Eclipse Che is now ready to allow container development.
+
+### Build a Local Instance of the Workspace Container Image
+
+Next, we will create a container image from the Dockerfile in the project.  We'll put that container image in our local OpenShift image registry.
 
 1. Open a terminal and log into the OpenShift cluster with the `oc` cli:
 
@@ -205,6 +286,8 @@ However, let's use the OpenShift internal registry and create a local instance o
    oc start-build podman-basic -n podman-build -w -F
    ```
 
+   __Note:__ the `-w` and `-F` tell the CLI to wait for the build to finish, and follow the logs respectively.  If you leave those flags off, then the build will run in the background and the CLI will return immediately on successful creation of the build.
+
 1. Verfy  the new tag on the `imageStream`
 
    ```bash
@@ -218,86 +301,9 @@ However, let's use the OpenShift internal registry and create a local instance o
    podman-basic   image-registry.openshift-image-registry.svc:5000/podman-build/podman-basic   latest   4 minutes ago
    ```
 
-OK.  Now we have a container image that supports podman in OpenShift.
+### Clone this project into your own Git repository
 
-In the next section, we'll create a Devfile that uses it in a Che workspace.
-
-## Basic Devfile for Container Development
-
-This project includes a basic [Devfile](https://devfile.io) that you can use out of the box to create a workspace in Eclipse Che for building images with rootless podman.
-
-```yaml
-schemaVersion: 2.2.0
-attributes:
-  controller.devfile.io/storage-type: per-workspace
-metadata:
-  name: podman-dev
-components:
-- name: podman
-  container: 
-    image: quay.io/cgruver0/che/podman-basic:latest
-    memoryLimit: 6Gi
-    mountSources: true
-- volume:
-    size: 4Gi
-  name: projects
-```
-
-This is just about as simple as a [Devfile](https://devfile.io) can get.  
-
-1. It is specifying one attribute, `controller.devfile.io/storage-type: per-workspace`, which instructs the Dev Workspace Operator to create a PVC for this workspace rather than sharing one across multiple workspaces.
-
-1. The workspace has one component, in this case it's the container images that we talked about above which has the container dev tooling in it.
-
-   1. We're requesting 6GB of RAM.
-   1. We're instructing the workspace to expose the project source code in this component: `mountSources: true`
-
-1. The workspace is requesting one persistent volume.
-
-__Note:__ This Devfile is referencing the pre-built image in my Quay.io account.  You can leave it like that if you want.  But...  since we went to the trouble of building our own image, we'll use that one instead.
-
-## Customizing VS Code for your Workspace
-
-Take a look at the file: `workspace-dev.code-workspace`.  This is a JSON file that VS Code can ingest to open a VS Code workspace.
-
-__Note:__ There is a collision of terms here...  Not to confuse the Eclipse Che "workspace", as defined by `.devfile.yaml`, with the VS Code "workspace" which runs inside the Che "workspace" in the VS Code editor.
-
-Yeah...  There's only so many words out there.
-
-```json
-{
-  "folders": [{
-      "path": "."
-    }],
-  "extensions": {
-    "recommendations": [
-      "redhat.vscode-yaml",
-      "mhutchie.git-graph",
-      "eamodio.gitlens",
-      "streetsidesoftware.code-spell-checker",
-      "johnpapa.winteriscoming"
-    ]
-  },
-  "settings": {
-    "workbench.colorTheme": "Winter is Coming (Light)",
-    "workbench.preferredDarkColorTheme": "Winter is Coming (Dark Blue)",
-    "workbench.preferredLightColorTheme": "Winter is Coming (Light)"
-  }
-}
-```
-
-This file is standard VS Code configuration.  By including it in this project, it will automatically configure VS Code when your Eclipse Che workspace is provisioned.
-
-| | |
-| - | - |
-| `folders` | Contains a list of paths, relative to the location of this file, of folders to include in the VS Code workspace |
-| `extensions.recommendations` | Contains a list of VS Code extensions which will be installed when the VS Code workspace is opened |
-| `settings` | Contains additional VS Code settings for the workspace.  In this example, it is setting the color theme |
-| | |
-
-## Putting it all together - Let's Use the above files to create a workspace
-
-1. First, make a clone of this GitHub repository in a Git repository that the OpenShift cluster can access.
+1. Make a clone of this GitHub repository in a Git repository that the OpenShift cluster can access.
 
    __Note:__ Unless you already have Eclipse Che set up for authenticated git access, you will need to make this project readable without authentication.
 
@@ -312,6 +318,8 @@ This file is standard VS Code configuration.  By including it in this project, i
    `image-registry.openshift-image-registry.svc:5000/podman-build/podman-basic`
 
    Now, you will be able to use the git repository URL of your clone of this project to build the workspace.
+
+### Create the Eclipse Che Workspace
 
 1. Point your browser to the Eclipse Che route.
 
