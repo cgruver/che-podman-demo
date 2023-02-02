@@ -350,7 +350,7 @@ Next, we will create a container image from the Dockerfile in the project.  We'l
    Paste the URL for your clone of this Git project into the form as shown below, and click `Create & Open`
 
    ```text
-   https://your.git.scm.org/your-project/che-podman-workspace.git
+   https://your.git.scm.org/your-project/che-podman-demo.git
    ```
 
    <img src="./readme-images/eclipse-che-create-workspace-from-git.png" width="70%"/>
