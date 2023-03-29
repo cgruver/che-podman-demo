@@ -28,3 +28,4 @@ RUN microdnf --disableplugin=subscription-manager install -y openssl compat-open
 
 USER 10001
 WORKDIR ${WORK_DIR}
+CMD [ "tail", "-f", "/dev/null" ]
