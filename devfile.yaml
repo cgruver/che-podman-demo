@@ -10,6 +10,11 @@ components:
     # image: image-registry.openshift-image-registry.svc:5000/podman-build/podman-basic:latest
     memoryLimit: 6Gi
     mountSources: true
+    args:
+      - '-f'
+      - /dev/null
+    command:
+      - tail
     env:
     - name: VSCODE_DEFAULT_WORKSPACE
       value: "/projects/che-podman-workspace/workspace-dev.code-workspace"
