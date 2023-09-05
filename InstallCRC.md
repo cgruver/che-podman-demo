@@ -1,4 +1,4 @@
-# Install & Configure OpenShift Local
+# Install & Configure OpenShift Local + Dev Spaces
 
 1. Go To: [https://developers.redhat.com/products/openshift/overview](https://developers.redhat.com/products/openshift/overview){:target="_blank"}
 
@@ -127,34 +127,28 @@
      name: devspaces
      namespace: openshift-devspaces
    spec:
-     components:
-       cheServer:
-         debug: false
-         logLevel: INFO
-       database:
-         credentialsSecretName: postgres-credentials
-         externalDb: false
-         postgresDb: dbche
-         postgresHostName: postgres
-         postgresPort: '5432'
-         pvc:
-           claimSize: 1Gi
-       metrics:
-         enable: true
-     containerRegistry: {}
-     devEnvironments:
-       secondsOfRunBeforeIdling: -1
-       containerBuildConfiguration:
-         openShiftSecurityContextConstraint: container-build
-       disableContainerBuildCapabilities: false
-       defaultEditor: che-incubator/che-code/insiders
-       defaultNamespace:
-         autoProvision: true
-         template: <username>-devspaces
-       secondsOfInactivityBeforeIdling: 1800
-       storage:
-         pvcStrategy: per-workspace
-     gitServices: {}
-     networking: {}
+   components:
+     cheServer:
+       debug: false
+       logLevel: INFO
+     metrics:
+       enable: true
+   containerRegistry: {}
+   devEnvironments:
+     startTimeoutSeconds: 300
+     secondsOfRunBeforeIdling: -1
+     maxNumberOfWorkspacesPerUser: -1
+     containerBuildConfiguration:
+       openShiftSecurityContextConstraint: container-build
+     disableContainerBuildCapabilities: false
+     defaultEditor: che-incubator/che-code/latest
+     defaultNamespace:
+       autoProvision: true
+       template: <username>-che
+     secondsOfInactivityBeforeIdling: 1800
+     storage:
+       pvcStrategy: per-workspace
+   gitServices: {}
+   networking: {}
    EOF
    ```

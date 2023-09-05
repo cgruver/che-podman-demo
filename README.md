@@ -21,7 +21,7 @@ There are two things necessary to develop container images in Eclipse Che:
 
 Let's look at a container image that our workspace can use to provide `podman` and some other tools for rootless container development.
 
-I've provided a Dockerfile for you as an example: `basic-podman.Dockerfile`
+I've provided a Containerfile for you as an example: `basic-podman.Containerfile`
 
 ```dockerfile
 FROM registry.access.redhat.com/ubi9/ubi-minimal
@@ -32,27 +32,24 @@ ARG WORK_DIR="/projects"
 ENV HOME=${USER_HOME_DIR}
 ENV BUILDAH_ISOLATION=chroot
 
+# Note: compat-openssl11 & libbrotli are needed for che-code (Che build of VS Code)
+
 RUN microdnf --disableplugin=subscription-manager install -y openssl compat-openssl11 libbrotli git tar which shadow-utils bash zsh wget jq podman buildah skopeo; \
     microdnf update -y ; \
     microdnf clean all ; \
     mkdir -p ${USER_HOME_DIR} ; \
     mkdir -p ${WORK_DIR} ; \
     chgrp -R 0 /home ; \
-    chgrp -R 0 ${WORK_DIR} ; \
     #
     # Setup for root-less podman
     #
     setcap cap_setuid+ep /usr/bin/newuidmap ; \
     setcap cap_setgid+ep /usr/bin/newgidmap ; \
-    mkdir -p "${HOME}"/.config/containers ; \
-    (echo '[storage]';echo 'driver = "vfs"') > "${HOME}"/.config/containers/storage.conf ; \
     touch /etc/subgid /etc/subuid ; \
-    chmod -R g=u /etc/passwd /etc/group /etc/subuid /etc/subgid /home ${WORK_DIR} ; \
-    echo user:20000:65536 > /etc/subuid  ; \
-    echo user:20000:65536 > /etc/subgid
+    chmod -R g=u /etc/passwd /etc/group /etc/subuid /etc/subgid /home ${WORK_DIR}
 
-USER 10001
 WORKDIR ${WORK_DIR}
+CMD [ "tail", "-f", "/dev/null" ]
 ```
 
 Let's break this down:
@@ -79,8 +76,6 @@ Let's break this down:
 1. We are creating the home directory and working directory, then setting permissions so that our user can access them with a random uid.  The uid at runtime will belong to group `0`.
 
 1. Next we are using `setcap` to ensure that our user at runtime can execute `newuidmap` and `newgidmap`.  __Note:__ This is a bit of secret sauce necessary to enable rootless podman.  Out of the box, shadow-utils does not have the correct permissions to allow rootless podman.
-
-1. Native `overlayfs` does not work yet for nested containers with an overlay filesystem, nor does `fuse-overlayfs` work yet for rootless podman.  So, in this next step we are creating a `storage.conf` file that tells buildah and podman to use `vfs`.  It's slow, but not horrible.
 
 1. In the next step, we are setting permissions on some of the shadow-utils files to allow our workspace to create the appropriate entries for our user when the workspace initializes.  __Note:__ There is an init container that creates the appropriate entries for us when our workspace starts.  It's part of the Che boiler plate.
 
@@ -130,7 +125,7 @@ __Note:__ This Devfile is referencing the pre-built image in my Quay.io account.
 
 Take a look at the file: `workspace-dev.code-workspace`.  This is a JSON file that VS Code can ingest to open a VS Code workspace.
 
-__Note:__ There is a collision of terms here...  Not to confuse the Eclipse Che "workspace", as defined by `.devfile.yaml`, with the VS Code "workspace" which runs inside the Che "workspace" in the VS Code editor.
+__Note:__ There is a collision of terms here...  Not to confuse the Eclipse Che "workspace", as defined by `devfile.yaml`, with the VS Code "workspace" which runs inside the Che "workspace" in the VS Code editor.
 
 Yeah...  There's only so many words out there.
 
@@ -189,7 +184,7 @@ Your instance of Eclipse Che is now ready to allow container development.
 
 ### Build a Local Instance of the Workspace Container Image
 
-Next, we will create a container image from the Dockerfile in the project.  We'll put that container image in our local OpenShift image registry.
+Next, we will create a container image from the Containerfile in the project.  We'll put that container image in our local OpenShift image registry.
 
 1. Open a terminal and log into the OpenShift cluster with the `oc` cli:
 
@@ -278,7 +273,7 @@ Next, we will create a container image from the Dockerfile in the project.  We'l
    EOF
    ```
 
-   __Note:__ This BuildConfig has an inline Dockerfile that our image will be built from.  The output image will be `podman-basic:latest` and will be associated with the ImageStream we created.
+   __Note:__ This BuildConfig has an inline Containerfile that our image will be built from.  The output image will be `podman-basic:latest` and will be associated with the ImageStream we created.
 
 1. Build the image:
 
@@ -307,9 +302,9 @@ Next, we will create a container image from the Dockerfile in the project.  We'l
 
    __Note:__ Unless you already have Eclipse Che set up for authenticated git access, you will need to make this project readable without authentication.
 
-1. Modify the `.devfile.yaml` in your copy of this code repo to use your new image:
+1. Modify the `devfile.yaml` in your copy of this code repo to use your new image:
 
-   Edit the file `.devfile.yaml` and replace:
+   Edit the file `devfile.yaml` and replace:
 
    `quay.io/cgruver0/che/podman-basic:latest`
 
@@ -358,9 +353,9 @@ Next, we will create a container image from the Dockerfile in the project.  We'l
    This action does several things to create your workspace:
 
    1. It clones this Git repo.
-   1. It finds the `.devfile.yaml` and uses it to configure a DevWorkspace Custom Resource with the Dev Workspace Operator.
+   1. It finds the `devfile.yaml` and uses it to configure a DevWorkspace Custom Resource with the Dev Workspace Operator.
    1. The DevWorkspace creates a PVC and attaches it to a pod.
-   1. It then adds the code from this repository to the /projects mount in the `podman` container.  (refer back to the .devfile.yaml for the container name)
+   1. It then adds the code from this repository to the /projects mount in the `podman` container.  (refer back to the devfile.yaml for the container name)
    1. It also runs an init container which injects the che-code (VS Code) editor into the `podman` container.
    1. It starts VS Code and exposes it to your browser.
 
@@ -404,7 +399,7 @@ You can access your workspace account from the icon just above the gear.
    In the terminal, run the following:
 
    ```bash
-   podman build -t test:test -f basic-podman.Dockerfile .
+   podman build -t test:test -f basic-podman.Containerfile .
    ```
 
    ![Podman Build](./readme-images/eclipse-che-build-image.png)
