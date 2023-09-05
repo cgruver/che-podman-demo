@@ -12,7 +12,7 @@ components:
     mountSources: true
     env:
     - name: VSCODE_DEFAULT_WORKSPACE
-      value: "/projects/che-podman-demo/workspace-dev.code-workspace"
+      value: "/projects/che-podman-workspace/workspace-dev.code-workspace"
 - volume:
     size: 4Gi
   name: projects
